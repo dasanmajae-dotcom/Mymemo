@@ -19,6 +19,23 @@ CATEGORY_COLORS = {
 TEXT_MAX_LEN = 200
 MEMO_MAX_LEN = 500
 
+# 키워드 기반 자동 카테고리 분류 규칙 (할 일 제목/메모에 포함된 단어를 검사)
+CATEGORY_KEYWORDS = {
+    "프로세스": [
+        "프로세스", "절차", "워크플로우", "승인", "결재", "검토", "일정", "계획",
+        "회의", "미팅", "보고", "정책", "규정", "협의", "조율", "예산", "일지",
+    ],
+    "컨텐츠": [
+        "컨텐츠", "콘텐츠", "카피", "블로그", "영상", "디자인", "이미지", "홍보",
+        "마케팅", "sns", "광고", "포스팅", "촬영", "편집", "썸네일", "카드뉴스",
+        "원고", "기획안",
+    ],
+    "QA": [
+        "qa", "테스트", "버그", "검증", "품질", "오류", "에러", "확인", "점검",
+        "배포", "릴리즈", "리뷰", "디버그", "장애", "회귀", "케이스",
+    ],
+}
+
 
 # ----------------------------------------------------------------------------
 # Persistence (JSON file on disk == localStorage equivalent for a Python app)
@@ -59,6 +76,14 @@ def save_tasks(tasks):
         st.warning(f"할 일 데이터를 저장하지 못했습니다: {e}")
 
 
+def classify_category(text):
+    lowered = text.lower()
+    for category, keywords in CATEGORY_KEYWORDS.items():
+        if any(kw in lowered for kw in keywords):
+            return category
+    return None
+
+
 @st.cache_data
 def get_base64_image(path):
     if not os.path.exists(path):
@@ -81,6 +106,13 @@ if "edit_error" not in st.session_state:
 # ----------------------------------------------------------------------------
 # Callbacks
 # ----------------------------------------------------------------------------
+def auto_classify_category():
+    combined = f"{st.session_state.get('new_text', '')} {st.session_state.get('new_memo', '')}"
+    matched = classify_category(combined)
+    if matched:
+        st.session_state.new_category = matched
+
+
 def add_task():
     text = st.session_state.get("new_text", "").strip()
     if not text:
@@ -224,6 +256,7 @@ st.markdown(
     .todo-text {{
         font-size: 15px;
         font-weight: 500;
+        color: #1a1a1a;
         overflow-wrap: anywhere;
     }}
     .todo-text.done {{
@@ -286,12 +319,14 @@ with st.container(border=True):
         key="new_category",
         label_visibility="collapsed",
     )
+    st.caption("💡 내용에 포함된 키워드로 카테고리가 자동 제안돼요 (버튼을 눌러 직접 바꿀 수 있어요)")
     st.text_input(
         "할 일",
         key="new_text",
         placeholder="할 일을 입력하세요",
         max_chars=TEXT_MAX_LEN,
         label_visibility="collapsed",
+        on_change=auto_classify_category,
     )
     st.text_area(
         "메모",
@@ -300,6 +335,7 @@ with st.container(border=True):
         max_chars=MEMO_MAX_LEN,
         height=68,
         label_visibility="collapsed",
+        on_change=auto_classify_category,
     )
     st.button("+ 추가", on_click=add_task, use_container_width=True, type="primary")
     if st.session_state.get("add_error"):
